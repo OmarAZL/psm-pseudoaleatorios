@@ -1,237 +1,530 @@
 """
-Proyecto para Simulación y Modelos, números pseudoaleatorios.
+Interfaz gráfica para generadores y validadores de números pseudoaleatorios.
 Omar Zabala y Cristian González
 """
+import tkinter as tk
+from tkinter import ttk, messagebox, scrolledtext
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.figure import Figure
+import numpy as np
 
-"""
-Algoritmo 1: Cuadrados medios.
-Este algoritmo no congruencial requiere un número entero (semilla) de D dígitos, el cual se eleva al cuadrado
-para extraer los D dígitos del centro. El primer número pseudoaleatorio r[1] se obtiene anteponiendo "0." A
-esos dígitos centrados. El proceso se repite elevando al cuadrado los dígitos centrales obtenidos
-anteriormente hasta generar los n números requeridos.
+# Importar módulos de generadores y validadores
+from generadores import (
+    cuadrados_medios, productos_medios, multiplicador_constante,
+    congruencial_lineal, congruencial_multiplicativo, congruencial_aditivo,
+    congruencial_cuadratico, blum_blum_shub
+)
+from validadores import (
+    prueba_media, prueba_varianza, prueba_chi_cuadrado, prueba_ks,
+    prueba_corridas_arriba_abajo, prueba_corridas_media, prueba_poker,
+    prueba_series, prueba_huecos
+)
 
-Pasos:
-1. Seleccionar la semilla X[0] con D dígitos (D > 3).
-2. Calcular Y[0] = (X[0])^2, extraer los D dígitos del centro para X[1] y formar r[1] = 0.X[1].
-3. Para cada paso i, calcular Y[i] = (X[i])^2, extraer los D dígitos del centro para X[i+1] y definir
-r[i+1] = 0.X[i+1].
-4. Repetir hasta obtener los n números requeridos.
 
-Nota: Si el resultado Y[i] no alcanza la cantidad suficiente de dígitos para extraer los D del centro,
-se completan con ceros a la izquierda.
+class AplicacionPseudoaleatorios:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Generadores y Validadores de Números Pseudoaleatorios")
+        self.root.geometry("1400x900")
+        self.root.minsize(900, 600)
 
-Ejemplo simplificado (X[0] = 5735, D = 4):
-Y[0] = (5735)^2 = 32890225 -> X[1] = 8902 -> r[1] = 0.8902
-Y[1] = (8902)^2 = 79245604 -> X[2] = 2456 -> r[2] = 0.2456
-Y[2] = (2456)^2 = 06031936 -> X[3] = 0319 -> r[3] = 0.0319
-Y[3] = (0319)^2 = 00101761 -> X[4] = 0176 -> r[4] = 0.0176
-Y[4] = (0176)^2 = 00030976 -> X[5] = 3097 -> r[5] = 0.3097
+        # Variables
+        self.numeros_generados = []
+        self.resultados_validacion = {}
+        self.validadores_visibles = False
 
-Desventaja: Este algoritmo tiende a degradarse rápidamente si se eligen semillas donde el centro se vuelve cero
-(por ejemplo, con X[0] = 1000, X[1] = 0000 y r[1] = 0.0000).
-"""
+        # Crear interfaz
+        self.crear_interfaz()
 
-def cuadrados_medios():
-    pass
+    def crear_interfaz(self):
+        # Frame principal con grid responsive
+        self.root.columnconfigure(0, weight=0)  # Panel izquierdo tamaño fijo
+        self.root.columnconfigure(1, weight=1)  # Panel derecho expandible
+        self.root.rowconfigure(0, weight=1)
 
-"""
-Algoritmo 2: Productos medios.
-Este algoritmo no congruencial requiere dos semillas enteras de D dígitos. En lugar de elevar al cuadrado,
-se multiplican ambas semillas y del producto obtenido se extraen los D dígitos del centro para formar el
-primer numero pseudoaleatorio r[1]. Luego se descarta la semilla mas antigua y se multiplica la segunda
-semilla por el nuevo valor de D dígitos para obtener r[2], repitiendo el proceso secuencialmente.
+        # === PANEL IZQUIERDO ===
+        panel_izquierdo = ttk.Frame(self.root, padding=10)
+        panel_izquierdo.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
+        panel_izquierdo.columnconfigure(0, weight=1)
 
-Pasos:
-1. Seleccionar la primera semilla X[0] con D dígitos (D > 3).
-2. Seleccionar la segunda semilla X[1] con D dígitos (D > 3).
-3. Calcular Y[0] = X[0] * X[1], extraer los D dígitos del centro para X[2] y formar r[1] = 0.X[2].
-4. Para cada paso i (iniciando en i = 0), calcular Y[i+1] = X[i+1] * X[i+2], extraer los D dígitos del
-centro para X[i+3] y definir r[i+2] = 0.X[i+3].
-5. Repetir hasta obtener los n números requeridos.
+        # Sección de generadores
+        frame_generadores = ttk.LabelFrame(panel_izquierdo, text="Generador de Números", padding=10)
+        frame_generadores.grid(row=0, column=0, sticky="ew", pady=5)
+        frame_generadores.columnconfigure(0, weight=1)
 
-Nota: Si el resultado Y[i] no alcanza la cantidad suficiente de dígitos para extraer los D del centro,
-se completan con ceros a la izquierda.
+        ttk.Label(frame_generadores, text="Seleccionar generador:").grid(row=0, column=0, sticky="w", pady=(0, 5))
+        self.combo_generador = ttk.Combobox(frame_generadores, state="readonly", width=25)
+        self.combo_generador['values'] = (
+            "Cuadrados Medios",
+            "Productos Medios",
+            "Multiplicador Constante",
+            "Congruencial Lineal",
+            "Congruencial Multiplicativo",
+            "Congruencial Aditivo",
+            "Congruencial Cuadrático",
+            "Blum, Blum y Shub"
+        )
+        self.combo_generador.current(0)
+        self.combo_generador.grid(row=1, column=0, sticky="ew", pady=5)
+        self.combo_generador.bind('<<ComboboxSelected>>', self.actualizar_parametros)
 
-Ejemplo simplificado (X[0] = 5015, X[1] = 5734, D = 4):
-Y[0] = (5015)(5734) = 28756010 -> X[2] = 7560 -> r[1] = 0.7560
-Y[1] = (5734)(7560) = 43349040 -> X[3] = 3490 -> r[2] = 0.3490
-Y[2] = (7560)(3490) = 26384400 -> X[4] = 3844 -> r[3] = 0.3844
-Y[3] = (3490)(3844) = 13415560 -> X[5] = 4155 -> r[4] = 0.4155
-Y[4] = (3844)(4155) = 15971820 -> X[6] = 9718 -> r[5] = 0.9718
-"""
+        # Frame para parámetros dinámicos
+        self.frame_parametros = ttk.Frame(frame_generadores)
+        self.frame_parametros.grid(row=2, column=0, sticky="ew", pady=5)
+        self.frame_parametros.columnconfigure(0, weight=1)
 
-def productos_medios():
-    pass
+        # Cantidad de números
+        ttk.Label(frame_generadores, text="Cantidad de números (n):").grid(row=3, column=0, sticky="w", pady=(5, 0))
+        self.entry_n = ttk.Entry(frame_generadores, width=25)
+        self.entry_n.insert(0, "100")
+        self.entry_n.grid(row=4, column=0, sticky="ew", pady=5)
 
-"""
-Algoritmo 3: Multiplicador constante.
-Este algoritmo no congruencial es similar al de productos medios. En lugar de multiplicar dos semillas variables,
-utiliza una constante fija "a" y una semilla X[0], ambas de D dígitos. Se multiplican "a" por la semilla actual
-para obtener Y[i], se extraen los D dígitos del centro para formar X[i+1], y se calcula r[i+1] = 0.X[i+1].
+        # Botón generar
+        btn_generar = ttk.Button(frame_generadores, text="Generar Números", command=self.generar_numeros)
+        btn_generar.grid(row=5, column=0, sticky="ew", pady=10)
 
-Pasos:
-1. Seleccionar una semilla X[0] con D dígitos (D > 3).
-2. Seleccionar una constante a con D dígitos (D > 3).
-3. Calcular Y[0] = a * X[0], extraer los D dígitos del centro para X[1] y formar r[1] = 0.X[1].
-4. Para cada paso i (iniciando en i = 0), calcular Y[i+1] = a * X[i+1], extraer los D dígitos del centro para
-X[i+2] y definir r[i+2] = 0.X[i+2].
-5. Repetir hasta obtener los n números requeridos.
+        # Sección de validadores (colapsable)
+        frame_validadores_container = ttk.Frame(panel_izquierdo)
+        frame_validadores_container.grid(row=1, column=0, sticky="ew", pady=5)
+        frame_validadores_container.columnconfigure(0, weight=1)
 
-Nota: Si Y[i] no alcanza los dígitos necesarios para extraer los D del centro, se completan con ceros a la
-izquierda.
+        # Botón para mostrar/ocultar validadores
+        self.btn_toggle_validadores = ttk.Button(
+            frame_validadores_container,
+            text="▶ Modificar Validadores",
+            command=self.toggle_validadores
+        )
+        self.btn_toggle_validadores.grid(row=0, column=0, sticky="ew")
 
-Ejemplo simplificado (X[0] = 9803, a = 6965, D = 4):
-Y[0] = (6965)(9803) = 68277895 -> X[1] = 2778 -> r[1] = 0.2778
-Y[1] = (6965)(2778) = 19348770 -> X[2] = 3487 -> r[2] = 0.3487
-Y[2] = (6965)(3487) = 24286955 -> X[3] = 2869 -> r[3] = 0.2869
-Y[3] = (6965)(2869) = 19982585 -> X[4] = 9825 -> r[4] = 0.9825
-Y[4] = (6965)(9825) = 68431125 -> X[5] = 4311 -> r[5] = 0.4311
-"""
+        # Frame de validadores (inicialmente oculto)
+        self.frame_validadores = ttk.LabelFrame(panel_izquierdo, text="Validadores", padding=10)
+        self.frame_validadores.grid(row=2, column=0, sticky="ew", pady=5)
+        self.frame_validadores.columnconfigure(0, weight=1)
+        self.frame_validadores.grid_remove()  # Oculto inicialmente
 
-def multiplicador_constante():
-    pass
+        # Checkboxes para validadores
+        self.var_media = tk.BooleanVar(value=True)
+        self.var_varianza = tk.BooleanVar(value=True)
+        self.var_chi_cuadrado = tk.BooleanVar(value=True)
+        self.var_ks = tk.BooleanVar(value=True)
+        self.var_corridas_aa = tk.BooleanVar(value=True)
+        self.var_corridas_media = tk.BooleanVar(value=True)
+        self.var_poker = tk.BooleanVar(value=True)
+        self.var_series = tk.BooleanVar(value=True)
+        self.var_huecos = tk.BooleanVar(value=True)
 
-"""
-Algoritmo 4: Congruencial lineal.
-Este algoritmo genera una secuencia de números enteros mediante la ecuación recursiva:
-    X[i+1] = (a * X[i] + c) mod m
-Para obtener números pseudoaleatorios en el intervalo (0,1) se utiliza:
-    r[i+1] = X[i+1] / (m - 1)
+        validadores_info = [
+            ("Prueba de Media", self.var_media),
+            ("Prueba de Varianza", self.var_varianza),
+            ("Prueba Chi-Cuadrado", self.var_chi_cuadrado),
+            ("Prueba Kolmogorov-Smirnov", self.var_ks),
+            ("Prueba Corridas Arriba/Abajo", self.var_corridas_aa),
+            ("Prueba Corridas Media", self.var_corridas_media),
+            ("Prueba Poker", self.var_poker),
+            ("Prueba Series", self.var_series),
+            ("Prueba Huecos", self.var_huecos),
+        ]
 
-Parámetros:
-* X[0]: Semilla inicial (X[0] > 0)
-* a: Constante multiplicativa (a > 0)
-* c: Constante aditiva (c > 0)
-* m: Modulo (m > 0)
+        for i, (texto, var) in enumerate(validadores_info):
+            ttk.Checkbutton(self.frame_validadores, text=texto, variable=var).grid(
+                row=i, column=0, sticky="w", pady=2
+            )
 
-Condiciones para periodo de vida máximo (N = m = 2^g):
-* m = 2^g (g entero)
-* a = 1 + 4k (k entero)
-* c debe ser relativamente primo a m
+        # Nivel de significancia
+        row_alfa = len(validadores_info)
+        ttk.Label(self.frame_validadores, text="Nivel de significancia (α):").grid(
+            row=row_alfa, column=0, sticky="w", pady=(10, 0)
+        )
+        self.entry_alfa = ttk.Entry(self.frame_validadores, width=25)
+        self.entry_alfa.insert(0, "0.05")
+        self.entry_alfa.grid(row=row_alfa + 1, column=0, sticky="ew", pady=5)
 
-Pasos:
-1. Seleccionar los parámetros X[0], a, c y m.
-2. Calcular X[i+1] = (a * X[i] + c) mod m.
-3. Calcular r[i+1] = X[i+1] / (m - 1).
-4. Repetir hasta obtener la cantidad deseada de números o hasta repetir la semilla X[0].
+        # === PANEL DERECHO ===
+        panel_derecho = ttk.Frame(self.root, padding=10)
+        panel_derecho.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
+        panel_derecho.columnconfigure(0, weight=1)
+        panel_derecho.rowconfigure(0, weight=1)
 
-Ejemplo simplificado (X[0] = 37, a = 19, c = 33, m = 100):
-X[1] = (19 * 37 + 33) mod 100 = 36 -> r[1] = 36 / 99 = 0.3636
-X[2] = (19 * 36 + 33) mod 100 = 17 -> r[2] = 17 / 99 = 0.1717
-X[3] = (19 * 17 + 33) mod 100 = 56 -> r[3] = 56 / 99 = 0.5656
-X[4] = (19 * 56 + 33) mod 100 = 97 -> r[4] = 97 / 99 = 0.9797
-"""
-"""
-Algoritmo 5: Congruencial multiplicativo
-Deriva del algoritmo congruencial lineal al establecer c = 0. Su ecuación recursiva es:
- X[i+1] = (a * X[i]) mod m
-Para obtener números entre (0,1) se utiliza:
- r[i+1] = X[i+1] / (m - 1)
+        # Notebook para tabs
+        self.notebook = ttk.Notebook(panel_derecho)
+        self.notebook.grid(row=0, column=0, sticky="nsew")
+        self.notebook.columnconfigure(0, weight=1)
+        self.notebook.rowconfigure(0, weight=1)
 
-Condiciones para periodo de vida máximo (N = m / 4 = 2^(g-2)):
-* m = 2^g (g entero)
-* a = 3 + 8k  o  a = 5 + 8k (k entero)
-* X[0] debe ser un numero impar
+        # Tab 1: Números generados
+        self.tab_numeros = ttk.Frame(self.notebook)
+        self.notebook.add(self.tab_numeros, text="Números Generados")
+        self.tab_numeros.columnconfigure(0, weight=1)
+        self.tab_numeros.rowconfigure(0, weight=1)
 
-Pasos:
-1. Definir los parámetros de entrada X[0] (impar), a y m.
-2. Calcular X[i+1] = (a * X[i]) mod m.
-3. Calcular r[i+1] = X[i+1] / (m - 1).
-4. Repetir el proceso hasta completar el periodo de vida.
+        self.text_numeros = scrolledtext.ScrolledText(self.tab_numeros, wrap=tk.WORD)
+        self.text_numeros.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
 
-Ejemplo simplificado (X[0] = 17, k = 2, g = 5 -> a = 21, m = 32):
-X[1] = (21 * 17) mod 32 = 5  -> r[1] = 5 / 31  = 0.1612
-X[2] = (21 * 5)  mod 32 = 9  -> r[2] = 9 / 31  = 0.2903
-X[3] = (21 * 9)  mod 32 = 29 -> r[3] = 29 / 31 = 0.9354
-X[4] = (21 * 29) mod 32 = 1  -> r[4] = 1 / 31  = 0.0322
-X[5] = (21 * 1)  mod 32 = 21 -> r[5] = 21 / 31 = 0.6774
-X[6] = (21 * 21) mod 32 = 25 -> r[6] = 25 / 31 = 0.8064
-X[7] = (21 * 25) mod 32 = 13 -> r[7] = 13 / 31 = 0.4193
-X[8] = (21 * 13) mod 32 = 17 -> r[8] = 17 / 31 = 0.5483
-"""
+        # Tab 2: Resultados de validación
+        self.tab_resultados = ttk.Frame(self.notebook)
+        self.notebook.add(self.tab_resultados, text="Resultados de Validación")
+        self.tab_resultados.columnconfigure(0, weight=1)
+        self.tab_resultados.rowconfigure(0, weight=1)
 
-def congruencial_lineal():
-    pass
+        self.text_resultados = scrolledtext.ScrolledText(self.tab_resultados, wrap=tk.WORD)
+        self.text_resultados.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
 
-"""
-Algoritmo 5: Congruencial aditivo.
-Requiere una secuencia previa de n números enteros (X[1], X[2], ..., X[n]) para generar nuevos elementos
-a partir de X[n+1]. Su ecuación recursiva es:
- X[i] = (X[i-1] + X[i-n]) mod m   para i = n+1, n+2, ...
-Los números r[i] se obtienen mediante:
- r[i] = X[i] / (m - 1)
+        # Tab 3: Gráficas
+        self.tab_graficas = ttk.Frame(self.notebook)
+        self.notebook.add(self.tab_graficas, text="Gráficas")
+        self.tab_graficas.columnconfigure(0, weight=1)
+        self.tab_graficas.rowconfigure(0, weight=1)
 
-Pasos:
-1. Seleccionar la secuencia inicial de n números enteros y el modulo m.
-2. Sumar el ultimo valor generado con el valor ubicado n posiciones atrás.
-3. Aplicar el modulo m al resultado para obtener X[i].
-4. Normalizar dividiendo entre (m - 1) para obtener r[i].
+        # Frame para gráficas
+        self.frame_graficas = ttk.Frame(self.tab_graficas)
+        self.frame_graficas.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
+        self.frame_graficas.columnconfigure(0, weight=1)
+        self.frame_graficas.rowconfigure(0, weight=1)
 
-Ejemplo simplificado (Secuencia inicial n=5: X[1]=65, X[2]=89, X[3]=98, X[4]=03, X[5]=69; m=100):
-X[6]  = (X[5]  + X[1]) mod 100 = (69 + 65) mod 100 = 34 -> r[1] = 34 / 99 = 0.3434
-X[7]  = (X[6]  + X[2]) mod 100 = (34 + 89) mod 100 = 23 -> r[2] = 23 / 99 = 0.2323
-X[8]  = (X[7]  + X[3]) mod 100 = (23 + 98) mod 100 = 21 -> r[3] = 21 / 99 = 0.2121
-X[9]  = (X[8]  + X[4]) mod 100 = (21 + 03) mod 100 = 24 -> r[4] = 24 / 99 = 0.2424
-X[10] = (X[9]  + X[5]) mod 100 = (24 + 69) mod 100 = 93 -> r[5] = 93 / 99 = 0.9393
-X[11] = (X[10] + X[6]) mod 100 = (93 + 34) mod 100 = 27 -> r[6] = 27 / 99 = 0.2727
-X[12] = (X[11] + X[7]) mod 100 = (27 + 23) mod 100 = 50 -> r[7] = 50 / 99 = 0.5050
-"""
+        # Inicializar parámetros
+        self.actualizar_parametros(None)
 
-def congruencial_aditivo():
-    pass
+    def toggle_validadores(self):
+        """Mostrar u ocultar la sección de validadores"""
+        if self.validadores_visibles:
+            self.frame_validadores.grid_remove()
+            self.btn_toggle_validadores.config(text="▶ Modificar Validadores")
+            self.validadores_visibles = False
+        else:
+            self.frame_validadores.grid(row=2, column=0, sticky="ew", pady=5)
+            self.btn_toggle_validadores.config(text="▼ Modificar Validadores")
+            self.validadores_visibles = True
 
-"""
-Algoritmo 6: Congruenciales no lineales.
-Sustituyen la relación lineal por expresiones polinomiales de mayor grado para generar secuencias no
-lineales de enteros mod m.
-"""
+    def actualizar_parametros(self, event):
+        # Limpiar frame de parámetros
+        for widget in self.frame_parametros.winfo_children():
+            widget.destroy()
 
-"""
-Algoritmo 6.1: Congruencial cuadrático.
-Ecuación recursiva:
-X[i+1] = (a * (X[i])^2 + b * X[i] + c) mod m
-Normalización: r[i+1] = X[i+1] / (m - 1)
+        generador = self.combo_generador.get()
 
-Condiciones para periodo de vida máximo (N = m):
-* m = 2^g (g entero)
-* a debe ser un numero par
-* c debe ser un numero impar
-* (b - 1) mod 4 = 1
+        # Crear campos según el generador seleccionado
+        if generador == "Cuadrados Medios":
+            ttk.Label(self.frame_parametros, text="Semilla:").grid(row=0, column=0, sticky="w")
+            self.entry_semilla = ttk.Entry(self.frame_parametros, width=25)
+            self.entry_semilla.insert(0, "5735")
+            self.entry_semilla.grid(row=1, column=0, sticky="ew", pady=2)
 
-Ejemplo simplificado (X[0]=13, m=8, a=26, b=27, c=27):
-X[1] = (26 * 13^2 + 27 * 13 + 27) mod 8 = 4
-X[2] = (26 * 4^2  + 27 * 4  + 27) mod 8 = 7
-X[3] = (26 * 7^2  + 27 * 7  + 27) mod 8 = 2
-X[4] = (26 * 2^2  + 27 * 2  + 27) mod 8 = 1
-X[5] = (26 * 1^2  + 27 * 1  + 27) mod 8 = 0
-X[6] = (26 * 0^2  + 27 * 0  + 27) mod 8 = 3
-X[7] = (26 * 3^2  + 27 * 3  + 27) mod 8 = 6
-X[8] = (26 * 6^2  + 27 * 6  + 27) mod 8 = 5
-X[9] = (26 * 5^2  + 27 * 5  + 27) mod 8 = 4
-"""
+            ttk.Label(self.frame_parametros, text="Dígitos (D):").grid(row=2, column=0, sticky="w")
+            self.entry_d = ttk.Entry(self.frame_parametros, width=25)
+            self.entry_d.insert(0, "4")
+            self.entry_d.grid(row=3, column=0, sticky="ew", pady=2)
 
-def congruencial_cuadratico():
-    pass
+        elif generador == "Productos Medios":
+            ttk.Label(self.frame_parametros, text="Semilla 1:").grid(row=0, column=0, sticky="w")
+            self.entry_semilla1 = ttk.Entry(self.frame_parametros, width=25)
+            self.entry_semilla1.insert(0, "5015")
+            self.entry_semilla1.grid(row=1, column=0, sticky="ew", pady=2)
 
-"""
-Algoritmo 6.2: Blum, Blum y Shub.
+            ttk.Label(self.frame_parametros, text="Semilla 2:").grid(row=2, column=0, sticky="w")
+            self.entry_semilla2 = ttk.Entry(self.frame_parametros, width=25)
+            self.entry_semilla2.insert(0, "5734")
+            self.entry_semilla2.grid(row=3, column=0, sticky="ew", pady=2)
 
-Variación del algoritmo cuadrático cuando a = 1, b = 0 y c = 0. Su ecuación recursiva es:
-X[i+1] = ((X[i])^2) mod m
+            ttk.Label(self.frame_parametros, text="Dígitos (D):").grid(row=4, column=0, sticky="w")
+            self.entry_d = ttk.Entry(self.frame_parametros, width=25)
+            self.entry_d.insert(0, "4")
+            self.entry_d.grid(row=5, column=0, sticky="ew", pady=2)
 
-Produce secuencias de enteros de comportamiento impredecible.
-"""
+        elif generador == "Multiplicador Constante":
+            ttk.Label(self.frame_parametros, text="Semilla:").grid(row=0, column=0, sticky="w")
+            self.entry_semilla = ttk.Entry(self.frame_parametros, width=25)
+            self.entry_semilla.insert(0, "9803")
+            self.entry_semilla.grid(row=1, column=0, sticky="ew", pady=2)
 
-def blum_blum_shub():
-    pass
+            ttk.Label(self.frame_parametros, text="Constante (a):").grid(row=2, column=0, sticky="w")
+            self.entry_a = ttk.Entry(self.frame_parametros, width=25)
+            self.entry_a.insert(0, "6965")
+            self.entry_a.grid(row=3, column=0, sticky="ew", pady=2)
+
+            ttk.Label(self.frame_parametros, text="Dígitos (D):").grid(row=4, column=0, sticky="w")
+            self.entry_d = ttk.Entry(self.frame_parametros, width=25)
+            self.entry_d.insert(0, "4")
+            self.entry_d.grid(row=5, column=0, sticky="ew", pady=2)
+
+        elif generador == "Congruencial Lineal":
+            ttk.Label(self.frame_parametros, text="Semilla (X0):").grid(row=0, column=0, sticky="w")
+            self.entry_semilla = ttk.Entry(self.frame_parametros, width=25)
+            self.entry_semilla.insert(0, "37")
+            self.entry_semilla.grid(row=1, column=0, sticky="ew", pady=2)
+
+            ttk.Label(self.frame_parametros, text="Constante (a):").grid(row=2, column=0, sticky="w")
+            self.entry_a = ttk.Entry(self.frame_parametros, width=25)
+            self.entry_a.insert(0, "19")
+            self.entry_a.grid(row=3, column=0, sticky="ew", pady=2)
+
+            ttk.Label(self.frame_parametros, text="Constante (c):").grid(row=4, column=0, sticky="w")
+            self.entry_c = ttk.Entry(self.frame_parametros, width=25)
+            self.entry_c.insert(0, "33")
+            self.entry_c.grid(row=5, column=0, sticky="ew", pady=2)
+
+            ttk.Label(self.frame_parametros, text="Módulo (m):").grid(row=6, column=0, sticky="w")
+            self.entry_m = ttk.Entry(self.frame_parametros, width=25)
+            self.entry_m.insert(0, "100")
+            self.entry_m.grid(row=7, column=0, sticky="ew", pady=2)
+
+        elif generador == "Congruencial Multiplicativo":
+            ttk.Label(self.frame_parametros, text="Semilla (X0, impar):").grid(row=0, column=0, sticky="w")
+            self.entry_semilla = ttk.Entry(self.frame_parametros, width=25)
+            self.entry_semilla.insert(0, "17")
+            self.entry_semilla.grid(row=1, column=0, sticky="ew", pady=2)
+
+            ttk.Label(self.frame_parametros, text="Constante (a):").grid(row=2, column=0, sticky="w")
+            self.entry_a = ttk.Entry(self.frame_parametros, width=25)
+            self.entry_a.insert(0, "21")
+            self.entry_a.grid(row=3, column=0, sticky="ew", pady=2)
+
+            ttk.Label(self.frame_parametros, text="Módulo (m):").grid(row=4, column=0, sticky="w")
+            self.entry_m = ttk.Entry(self.frame_parametros, width=25)
+            self.entry_m.insert(0, "32")
+            self.entry_m.grid(row=5, column=0, sticky="ew", pady=2)
+
+        elif generador == "Congruencial Aditivo":
+            ttk.Label(self.frame_parametros, text="Secuencia inicial (separada por comas):").grid(row=0, column=0, sticky="w")
+            self.entry_secuencia = ttk.Entry(self.frame_parametros, width=25)
+            self.entry_secuencia.insert(0, "65,89,98,3,69")
+            self.entry_secuencia.grid(row=1, column=0, sticky="ew", pady=2)
+
+            ttk.Label(self.frame_parametros, text="Módulo (m):").grid(row=2, column=0, sticky="w")
+            self.entry_m = ttk.Entry(self.frame_parametros, width=25)
+            self.entry_m.insert(0, "100")
+            self.entry_m.grid(row=3, column=0, sticky="ew", pady=2)
+
+        elif generador == "Congruencial Cuadrático":
+            ttk.Label(self.frame_parametros, text="Semilla (X0):").grid(row=0, column=0, sticky="w")
+            self.entry_semilla = ttk.Entry(self.frame_parametros, width=25)
+            self.entry_semilla.insert(0, "13")
+            self.entry_semilla.grid(row=1, column=0, sticky="ew", pady=2)
+
+            ttk.Label(self.frame_parametros, text="Constante (a):").grid(row=2, column=0, sticky="w")
+            self.entry_a = ttk.Entry(self.frame_parametros, width=25)
+            self.entry_a.insert(0, "26")
+            self.entry_a.grid(row=3, column=0, sticky="ew", pady=2)
+
+            ttk.Label(self.frame_parametros, text="Constante (b):").grid(row=4, column=0, sticky="w")
+            self.entry_b = ttk.Entry(self.frame_parametros, width=25)
+            self.entry_b.insert(0, "27")
+            self.entry_b.grid(row=5, column=0, sticky="ew", pady=2)
+
+            ttk.Label(self.frame_parametros, text="Constante (c):").grid(row=6, column=0, sticky="w")
+            self.entry_c = ttk.Entry(self.frame_parametros, width=25)
+            self.entry_c.insert(0, "27")
+            self.entry_c.grid(row=7, column=0, sticky="ew", pady=2)
+
+            ttk.Label(self.frame_parametros, text="Módulo (m):").grid(row=8, column=0, sticky="w")
+            self.entry_m = ttk.Entry(self.frame_parametros, width=25)
+            self.entry_m.insert(0, "8")
+            self.entry_m.grid(row=9, column=0, sticky="ew", pady=2)
+
+        elif generador == "Blum, Blum y Shub":
+            ttk.Label(self.frame_parametros, text="Semilla (X0):").grid(row=0, column=0, sticky="w")
+            self.entry_semilla = ttk.Entry(self.frame_parametros, width=25)
+            self.entry_semilla.insert(0, "7")
+            self.entry_semilla.grid(row=1, column=0, sticky="ew", pady=2)
+
+            ttk.Label(self.frame_parametros, text="Módulo (m):").grid(row=2, column=0, sticky="w")
+            self.entry_m = ttk.Entry(self.frame_parametros, width=25)
+            self.entry_m.insert(0, "100")
+            self.entry_m.grid(row=3, column=0, sticky="ew", pady=2)
+
+    def generar_numeros(self):
+        try:
+            n = int(self.entry_n.get())
+            generador = self.combo_generador.get()
+
+            # Ejecutar el generador seleccionado
+            if generador == "Cuadrados Medios":
+                semilla = self.entry_semilla.get()
+                d = int(self.entry_d.get())
+                resultado = cuadrados_medios(semilla, d, n)
+
+            elif generador == "Productos Medios":
+                semilla1 = self.entry_semilla1.get()
+                semilla2 = self.entry_semilla2.get()
+                d = int(self.entry_d.get())
+                resultado = productos_medios(semilla1, semilla2, d, n)
+
+            elif generador == "Multiplicador Constante":
+                semilla = self.entry_semilla.get()
+                a = int(self.entry_a.get())
+                d = int(self.entry_d.get())
+                resultado = multiplicador_constante(semilla, a, d, n)
+
+            elif generador == "Congruencial Lineal":
+                semilla = int(self.entry_semilla.get())
+                a = int(self.entry_a.get())
+                c = int(self.entry_c.get())
+                m = int(self.entry_m.get())
+                resultado = congruencial_lineal(semilla, a, c, m, n)
+
+            elif generador == "Congruencial Multiplicativo":
+                semilla = int(self.entry_semilla.get())
+                a = int(self.entry_a.get())
+                m = int(self.entry_m.get())
+                resultado = congruencial_multiplicativo(semilla, a, m, n)
+
+            elif generador == "Congruencial Aditivo":
+                secuencia = [int(x.strip()) for x in self.entry_secuencia.get().split(',')]
+                m = int(self.entry_m.get())
+                resultado = congruencial_aditivo(secuencia, m, n)
+
+            elif generador == "Congruencial Cuadrático":
+                semilla = int(self.entry_semilla.get())
+                a = int(self.entry_a.get())
+                b = int(self.entry_b.get())
+                c = int(self.entry_c.get())
+                m = int(self.entry_m.get())
+                resultado = congruencial_cuadratico(semilla, a, b, c, m, n)
+
+            elif generador == "Blum, Blum y Shub":
+                semilla = int(self.entry_semilla.get())
+                m = int(self.entry_m.get())
+                resultado = blum_blum_shub(semilla, m, n)
+
+            # Verificar si hay error
+            if isinstance(resultado, str):
+                messagebox.showerror("Error", resultado)
+                return
+
+            # Convertir a flotantes si son strings
+            self.numeros_generados = [float(r) for r in resultado]
+
+            # Mostrar en el text widget
+            self.text_numeros.delete(1.0, tk.END)
+            self.text_numeros.insert(tk.END, f"Números generados ({generador}):\n\n")
+            for i, num in enumerate(self.numeros_generados, 1):
+                self.text_numeros.insert(tk.END, f"{i:3d}: {num:.4f}\n")
+
+            # Crear gráfica de distribución
+            self.crear_grafica_distribucion()
+
+            # Aplicar validadores automáticamente
+            self.aplicar_validadores()
+
+            messagebox.showinfo("Éxito", f"Se generaron {len(self.numeros_generados)} números y se aplicaron los validadores")
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al generar números: {str(e)}")
+
+    def aplicar_validadores(self):
+        if not self.numeros_generados:
+            return
+
+        try:
+            alfa = float(self.entry_alfa.get())
+            self.resultados_validacion = {}
+
+            self.text_resultados.delete(1.0, tk.END)
+            self.text_resultados.insert(tk.END, "RESULTADOS DE VALIDACIÓN\n")
+            self.text_resultados.insert(tk.END, "="*60 + "\n\n")
+
+            # Aplicar validadores seleccionados
+            if self.var_media.get():
+                resultado = prueba_media(self.numeros_generados, alfa)
+                self.resultados_validacion["Media"] = resultado
+                self.mostrar_resultado("Prueba de Media", resultado)
+
+            if self.var_varianza.get():
+                resultado = prueba_varianza(self.numeros_generados, alfa)
+                self.resultados_validacion["Varianza"] = resultado
+                self.mostrar_resultado("Prueba de Varianza", resultado)
+
+            if self.var_chi_cuadrado.get():
+                resultado = prueba_chi_cuadrado(self.numeros_generados, alfa=alfa)
+                self.resultados_validacion["Chi-Cuadrado"] = resultado
+                self.mostrar_resultado("Prueba Chi-Cuadrado", resultado)
+
+            if self.var_ks.get():
+                resultado = prueba_ks(self.numeros_generados, alfa)
+                self.resultados_validacion["KS"] = resultado
+                self.mostrar_resultado("Prueba Kolmogorov-Smirnov", resultado)
+
+            if self.var_corridas_aa.get():
+                resultado = prueba_corridas_arriba_abajo(self.numeros_generados, alfa)
+                self.resultados_validacion["Corridas AA"] = resultado
+                self.mostrar_resultado("Prueba Corridas Arriba/Abajo", resultado)
+
+            if self.var_corridas_media.get():
+                resultado = prueba_corridas_media(self.numeros_generados, alfa)
+                self.resultados_validacion["Corridas Media"] = resultado
+                self.mostrar_resultado("Prueba Corridas Media", resultado)
+
+            if self.var_poker.get():
+                resultado = prueba_poker(self.numeros_generados, alfa=alfa)
+                self.resultados_validacion["Poker"] = resultado
+                self.mostrar_resultado("Prueba Poker", resultado)
+
+            if self.var_series.get():
+                resultado = prueba_series(self.numeros_generados, alfa=alfa)
+                self.resultados_validacion["Series"] = resultado
+                self.mostrar_resultado("Prueba Series", resultado)
+
+            if self.var_huecos.get():
+                resultado = prueba_huecos(self.numeros_generados, alfa=alfa)
+                self.resultados_validacion["Huecos"] = resultado
+                self.mostrar_resultado("Prueba Huecos", resultado)
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al aplicar validadores: {str(e)}")
+
+    def mostrar_resultado(self, nombre, resultado):
+        self.text_resultados.insert(tk.END, f"{nombre}\n")
+        self.text_resultados.insert(tk.END, "-"*60 + "\n")
+        for clave, valor in resultado.items():
+            self.text_resultados.insert(tk.END, f"{clave}: {valor}\n")
+        self.text_resultados.insert(tk.END, "\n")
+
+    def crear_grafica_distribucion(self):
+        # Limpiar gráficas anteriores
+        for widget in self.frame_graficas.winfo_children():
+            widget.destroy()
+
+        # Crear figura con dos subplots
+        fig = Figure(figsize=(10, 8), dpi=100)
+
+        # Subplot 1: Histograma
+        ax1 = fig.add_subplot(211)
+        ax1.hist(self.numeros_generados, bins=20, density=True, alpha=0.7,
+                color='steelblue', edgecolor='black')
+        ax1.axhline(y=1, color='red', linestyle='--', label='Uniforme esperada')
+        ax1.set_xlabel('Valor')
+        ax1.set_ylabel('Densidad')
+        ax1.set_title('Distribución de Números Generados')
+        ax1.legend()
+        ax1.grid(True, alpha=0.3)
+
+        # Subplot 2: Serie temporal
+        ax2 = fig.add_subplot(212)
+        ax2.plot(range(len(self.numeros_generados)), self.numeros_generados,
+                marker='o', linestyle='-', markersize=3, color='green')
+        ax2.axhline(y=0.5, color='red', linestyle='--', label='Media esperada (0.5)')
+        ax2.set_xlabel('Índice')
+        ax2.set_ylabel('Valor')
+        ax2.set_title('Serie Temporal de Números Generados')
+        ax2.legend()
+        ax2.grid(True, alpha=0.3)
+
+        fig.tight_layout()
+
+        # Integrar en tkinter
+        canvas = FigureCanvasTkAgg(fig, master=self.frame_graficas)
+        canvas.draw()
+        canvas.get_tk_widget().grid(row=0, column=0, sticky="nsew")
+
+        # Cambiar al tab de gráficas
+        self.notebook.select(self.tab_graficas)
+
+
+def main():
+    root = tk.Tk()
+    app = AplicacionPseudoaleatorios(root)
+    root.mainloop()
+
 
 if __name__ == "__main__":
-    cuadrados_medios()
-    productos_medios()
-    multiplicador_constante()
-    congruencial_lineal()
-    congruencial_aditivo()
-    congruencial_cuadratico()
-    blum_blum_shub()
-
-
+    main()
