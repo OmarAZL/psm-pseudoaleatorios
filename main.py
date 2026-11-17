@@ -43,13 +43,50 @@ class AplicacionPseudoaleatorios:
         self.root.columnconfigure(1, weight=1)  # Panel derecho expandible
         self.root.rowconfigure(0, weight=1)
 
-        # === PANEL IZQUIERDO ===
-        panel_izquierdo = ttk.Frame(self.root, padding=10)
-        panel_izquierdo.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
-        panel_izquierdo.columnconfigure(0, weight=1)
+        # === PANEL IZQUIERDO CON SCROLL ===
+        # Contenedor del panel izquierdo (Canvas + Scrollbar)
+        self.panel_izquierdo_container = ttk.Frame(self.root)
+        self.panel_izquierdo_container.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
+        self.panel_izquierdo_container.columnconfigure(0, weight=1)
+        self.panel_izquierdo_container.rowconfigure(0, weight=1)
+
+        # Canvas con scroll para el panel izquierdo
+        self.canvas_izquierdo = tk.Canvas(self.panel_izquierdo_container, highlightthickness=0, width=320)
+        self.scrollbar_izquierdo = ttk.Scrollbar(
+            self.panel_izquierdo_container, orient="vertical", command=self.canvas_izquierdo.yview
+        )
+        self.canvas_izquierdo.configure(yscrollcommand=self.scrollbar_izquierdo.set)
+
+        self.canvas_izquierdo.grid(row=0, column=0, sticky="nsew")
+        self.scrollbar_izquierdo.grid(row=0, column=1, sticky="ns")
+
+        # Frame interno dentro del Canvas (este es el que tiene el contenido)
+        self.panel_izquierdo = ttk.Frame(self.canvas_izquierdo, padding=10)
+        self.panel_izquierdo.columnconfigure(0, weight=1)
+
+        # Vincular el frame interno al canvas
+        self.canvas_window = self.canvas_izquierdo.create_window(
+            (0, 0), window=self.panel_izquierdo, anchor="nw"
+        )
+
+        # Actualizar scroll region cuando cambia el tamaño del contenido
+        self.panel_izquierdo.bind(
+            "<Configure>",
+            lambda e: self.canvas_izquierdo.configure(scrollregion=self.canvas_izquierdo.bbox("all"))
+        )
+
+        # Ajustar el ancho del frame interno al ancho del canvas
+        self.canvas_izquierdo.bind(
+            "<Configure>",
+            lambda e: self.canvas_izquierdo.itemconfigure(self.canvas_window, width=e.width)
+        )
+
+        # Scroll con la rueda del mouse (compatible con Windows, Mac y Linux)
+        self.canvas_izquierdo.bind("<Enter>", self._bindar_mousewheel)
+        self.canvas_izquierdo.bind("<Leave>", self._desbindar_mousewheel)
 
         # Sección de generadores
-        frame_generadores = ttk.LabelFrame(panel_izquierdo, text="Generador de Números", padding=10)
+        frame_generadores = ttk.LabelFrame(self.panel_izquierdo, text="Generador de Números", padding=10)
         frame_generadores.grid(row=0, column=0, sticky="ew", pady=5)
         frame_generadores.columnconfigure(0, weight=1)
 
@@ -85,7 +122,7 @@ class AplicacionPseudoaleatorios:
         btn_generar.grid(row=5, column=0, sticky="ew", pady=10)
 
         # Sección de validadores (colapsable)
-        frame_validadores_container = ttk.Frame(panel_izquierdo)
+        frame_validadores_container = ttk.Frame(self.panel_izquierdo)
         frame_validadores_container.grid(row=1, column=0, sticky="ew", pady=5)
         frame_validadores_container.columnconfigure(0, weight=1)
 
@@ -98,7 +135,7 @@ class AplicacionPseudoaleatorios:
         self.btn_toggle_validadores.grid(row=0, column=0, sticky="ew")
 
         # Frame de validadores (inicialmente oculto)
-        self.frame_validadores = ttk.LabelFrame(panel_izquierdo, text="Validadores", padding=10)
+        self.frame_validadores = ttk.LabelFrame(self.panel_izquierdo, text="Validadores", padding=10)
         self.frame_validadores.grid(row=2, column=0, sticky="ew", pady=5)
         self.frame_validadores.columnconfigure(0, weight=1)
         self.frame_validadores.grid_remove()  # Oculto inicialmente
@@ -185,6 +222,35 @@ class AplicacionPseudoaleatorios:
         # Inicializar parámetros
         self.actualizar_parametros(None)
 
+    # ------------------------------------------------------------------
+    # Métodos de scroll con la rueda del mouse
+    # ------------------------------------------------------------------
+    def _bindar_mousewheel(self, event):
+        # Windows / macOS
+        self.canvas_izquierdo.bind_all("<MouseWheel>", self._on_mousewheel)
+        # Linux
+        self.canvas_izquierdo.bind_all("<Button-4>", self._on_mousewheel_linux)
+        self.canvas_izquierdo.bind_all("<Button-5>", self._on_mousewheel_linux)
+
+    def _desbindar_mousewheel(self, event):
+        self.canvas_izquierdo.unbind_all("<MouseWheel>")
+        self.canvas_izquierdo.unbind_all("<Button-4>")
+        self.canvas_izquierdo.unbind_all("<Button-5>")
+
+    def _on_mousewheel(self, event):
+        # En macOS el delta es diferente; en Windows es múltiplo de 120
+        self.canvas_izquierdo.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+    def _on_mousewheel_linux(self, event):
+        # En Linux, Button-4 = scroll arriba, Button-5 = scroll abajo
+        if event.num == 4:
+            self.canvas_izquierdo.yview_scroll(-1, "units")
+        elif event.num == 5:
+            self.canvas_izquierdo.yview_scroll(1, "units")
+
+    # ------------------------------------------------------------------
+    # Mostrar / ocultar validadores
+    # ------------------------------------------------------------------
     def toggle_validadores(self):
         """Mostrar u ocultar la sección de validadores"""
         if self.validadores_visibles:
@@ -196,6 +262,13 @@ class AplicacionPseudoaleatorios:
             self.btn_toggle_validadores.config(text="▼ Modificar Validadores")
             self.validadores_visibles = True
 
+        # Forzar actualización del scroll region
+        self.panel_izquierdo.update_idletasks()
+        self.canvas_izquierdo.configure(scrollregion=self.canvas_izquierdo.bbox("all"))
+
+    # ------------------------------------------------------------------
+    # Parámetros dinámicos del generador
+    # ------------------------------------------------------------------
     def actualizar_parametros(self, event):
         # Limpiar frame de parámetros
         for widget in self.frame_parametros.winfo_children():
@@ -203,7 +276,6 @@ class AplicacionPseudoaleatorios:
 
         generador = self.combo_generador.get()
 
-        # Crear campos según el generador seleccionado
         if generador == "Cuadrados Medios":
             ttk.Label(self.frame_parametros, text="Semilla:").grid(row=0, column=0, sticky="w")
             self.entry_semilla = ttk.Entry(self.frame_parametros, width=25)
@@ -332,12 +404,18 @@ class AplicacionPseudoaleatorios:
             self.entry_m.insert(0, "100")
             self.entry_m.grid(row=3, column=0, sticky="ew", pady=2)
 
+        # Forzar actualización del scroll region tras cambiar parámetros
+        self.panel_izquierdo.update_idletasks()
+        self.canvas_izquierdo.configure(scrollregion=self.canvas_izquierdo.bbox("all"))
+
+    # ------------------------------------------------------------------
+    # Generar números
+    # ------------------------------------------------------------------
     def generar_numeros(self):
         try:
             n = int(self.entry_n.get())
             generador = self.combo_generador.get()
 
-            # Ejecutar el generador seleccionado
             if generador == "Cuadrados Medios":
                 semilla = self.entry_semilla.get()
                 d = int(self.entry_d.get())
@@ -386,31 +464,31 @@ class AplicacionPseudoaleatorios:
                 m = int(self.entry_m.get())
                 resultado = blum_blum_shub(semilla, m, n)
 
-            # Verificar si hay error
             if isinstance(resultado, str):
                 messagebox.showerror("Error", resultado)
                 return
 
-            # Convertir a flotantes si son strings
             self.numeros_generados = [float(r) for r in resultado]
 
-            # Mostrar en el text widget
             self.text_numeros.delete(1.0, tk.END)
             self.text_numeros.insert(tk.END, f"Números generados ({generador}):\n\n")
             for i, num in enumerate(self.numeros_generados, 1):
                 self.text_numeros.insert(tk.END, f"{i:3d}: {num:.4f}\n")
 
-            # Crear gráfica de distribución
             self.crear_grafica_distribucion()
-
-            # Aplicar validadores automáticamente
             self.aplicar_validadores()
 
-            messagebox.showinfo("Éxito", f"Se generaron {len(self.numeros_generados)} números y se aplicaron los validadores")
+            messagebox.showinfo(
+                "Éxito",
+                f"Se generaron {len(self.numeros_generados)} números y se aplicaron los validadores"
+            )
 
         except Exception as e:
             messagebox.showerror("Error", f"Error al generar números: {str(e)}")
 
+    # ------------------------------------------------------------------
+    # Aplicar validadores
+    # ------------------------------------------------------------------
     def aplicar_validadores(self):
         if not self.numeros_generados:
             return
@@ -421,9 +499,8 @@ class AplicacionPseudoaleatorios:
 
             self.text_resultados.delete(1.0, tk.END)
             self.text_resultados.insert(tk.END, "RESULTADOS DE VALIDACIÓN\n")
-            self.text_resultados.insert(tk.END, "="*60 + "\n\n")
+            self.text_resultados.insert(tk.END, "=" * 60 + "\n\n")
 
-            # Aplicar validadores seleccionados
             if self.var_media.get():
                 resultado = prueba_media(self.numeros_generados, alfa)
                 self.resultados_validacion["Media"] = resultado
@@ -474,23 +551,28 @@ class AplicacionPseudoaleatorios:
 
     def mostrar_resultado(self, nombre, resultado):
         self.text_resultados.insert(tk.END, f"{nombre}\n")
-        self.text_resultados.insert(tk.END, "-"*60 + "\n")
-        for clave, valor in resultado.items():
-            self.text_resultados.insert(tk.END, f"{clave}: {valor}\n")
+        self.text_resultados.insert(tk.END, "-" * 60 + "\n")
+
+        if isinstance(resultado, str):
+            self.text_resultados.insert(tk.END, f"⚠️ {resultado}\n")
+        else:
+            for clave, valor in resultado.items():
+                self.text_resultados.insert(tk.END, f"{clave}: {valor}\n")
+
         self.text_resultados.insert(tk.END, "\n")
 
+    # ------------------------------------------------------------------
+    # Gráficas
+    # ------------------------------------------------------------------
     def crear_grafica_distribucion(self):
-        # Limpiar gráficas anteriores
         for widget in self.frame_graficas.winfo_children():
             widget.destroy()
 
-        # Crear figura con dos subplots
         fig = Figure(figsize=(10, 8), dpi=100)
 
-        # Subplot 1: Histograma
         ax1 = fig.add_subplot(211)
         ax1.hist(self.numeros_generados, bins=20, density=True, alpha=0.7,
-                color='steelblue', edgecolor='black')
+                 color='steelblue', edgecolor='black')
         ax1.axhline(y=1, color='red', linestyle='--', label='Uniforme esperada')
         ax1.set_xlabel('Valor')
         ax1.set_ylabel('Densidad')
@@ -498,10 +580,9 @@ class AplicacionPseudoaleatorios:
         ax1.legend()
         ax1.grid(True, alpha=0.3)
 
-        # Subplot 2: Serie temporal
         ax2 = fig.add_subplot(212)
         ax2.plot(range(len(self.numeros_generados)), self.numeros_generados,
-                marker='o', linestyle='-', markersize=3, color='green')
+                 marker='o', linestyle='-', markersize=3, color='green')
         ax2.axhline(y=0.5, color='red', linestyle='--', label='Media esperada (0.5)')
         ax2.set_xlabel('Índice')
         ax2.set_ylabel('Valor')
@@ -511,12 +592,10 @@ class AplicacionPseudoaleatorios:
 
         fig.tight_layout()
 
-        # Integrar en tkinter
         canvas = FigureCanvasTkAgg(fig, master=self.frame_graficas)
         canvas.draw()
         canvas.get_tk_widget().grid(row=0, column=0, sticky="nsew")
 
-        # Cambiar al tab de gráficas
         self.notebook.select(self.tab_graficas)
 
 

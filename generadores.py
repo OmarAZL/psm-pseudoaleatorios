@@ -115,10 +115,10 @@ Y[2] = (6965)(3487) = 24286955 -> X[3] = 2869 -> r[3] = 0.2869
 Y[3] = (6965)(2869) = 19982585 -> X[4] = 9825 -> r[4] = 0.9825
 Y[4] = (6965)(9825) = 68431125 -> X[5] = 4311 -> r[5] = 0.4311
 """
-def multiplicador_constante(semilla, a, d=0, n=10):
+def multiplicador_constante(semilla, constante, d=0, n=10):
     if not (isinstance(semilla, (int, str)) and str(semilla).isdigit() and len(str(semilla)) > 3):
         return "La semilla debe ser un entero mayor a 3"
-    if not (isinstance(a, (int, str)) and str(a).isdigit() and len(str(a)) > 3):
+    if not (isinstance(constante, (int, str)) and str(constante).isdigit() and len(str(constante)) > 3):
         return "La constante 'a' debe ser un entero mayor a 3"
     if d == 0:
         d = len(str(semilla))
@@ -126,7 +126,7 @@ def multiplicador_constante(semilla, a, d=0, n=10):
         return "El número de dígitos (d) debe ser mayor a 3 para aplicar el método"
 
     resultados = []
-    a_int = int(a)
+    a_int = int(constante)
     x = int(semilla)
 
     for _ in range(n):

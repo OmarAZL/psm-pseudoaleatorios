@@ -61,37 +61,41 @@ def prueba_media(aleatorios, alfa=0.05):
 
 
 # =============================================================================
-# VALIDADOR 2: PRUEBA DE LA VARIANZA
+# VALIDADOR 2: PRUEBA DE LA VARIANZA (Según el libro, Sección 2.4.2)
 # =============================================================================
 """
-Algoritmo 2: Prueba de la varianza.
-Verifica si los números pseudoaleatorios generados tienen una varianza estadísticamente
-igual a 1/12, que es el valor esperado para una distribución uniforme en (0,1).
+Algoritmo: Prueba de varianza.
+Objetivo: Determinar si los números pseudoaleatorios de un conjunto tienen una 
+varianza estadísticamente igual a 1/12, que es el valor esperado teórico para 
+una distribución uniforme en el intervalo (0, 1).
 
 Hipótesis:
-H0: S² = 1/12
-H1: S² ≠ 1/12
+H0: σ² = 1/12 (Los números tienen varianza de 1/12)
+H1: σ² ≠ 1/12 (Los números no tienen varianza de 1/12)
 
-Estadístico de prueba:
-χ² = (n - 1) * S² / (1/12)
+Pasos:
+1. Calcular la varianza muestral V(r) de los n números mediante la ecuación:
+   V(r) = Σ(r_i - r̄)² / (n - 1)
+2. Calcular los límites de aceptación inferior (L_I) y superior (L_S) usando 
+   la distribución Chi-cuadrada con (n - 1) grados de libertad:
+   L_I = χ²_(α/2, n-1) / (12 * (n - 1))
+   L_S = χ²_(1-α/2, n-1) / (12 * (n - 1))
+3. Criterio de decisión: Si el valor de V(r) se encuentra entre L_I y L_S, 
+   no se puede rechazar H0 con un nivel de confianza de (1 - α). De lo contrario, 
+   se rechaza H0.
 
-Donde:
-- S² = (1/(n-1)) * Σ (r[i] - x̄)² (varianza muestral)
-- n = cantidad de números pseudoaleatorios
-- 1/12 = varianza teórica de la distribución uniforme en (0,1)
-
-Criterio de decisión:
-Si χ²_{1-α/2, n-1} ≤ χ² ≤ χ²_{α/2, n-1}, no se rechaza H0
-En otro caso, se rechaza H0
-
-Ejemplo (r = [0.36, 0.17, 0.56, 0.97, 0.23], α = 0.05):
-x̄ = 0.458
-S² = ((0.36-0.458)² + (0.17-0.458)² + (0.56-0.458)² + (0.97-0.458)² + (0.23-0.458)²) / 4
-S² = 0.0923
-χ² = 4 * 0.0923 / (1/12) = 4.4304
-χ²_{0.975, 4} = 0.484, χ²_{0.025, 4} = 11.143
-0.484 ≤ 4.4304 ≤ 11.143 → No se rechaza H0
+Ejemplo (Basado en el Ejemplo 2.12 del libro):
+Conjunto de n = 40 números, nivel de aceptación del 95% (α = 0.05).
+1. Varianza muestral calculada: V(r) = 0.08695
+2. Valores Chi-cuadrada para 39 grados de libertad: 
+   χ²_(0.025, 39) = 23.6543  y  χ²_(0.975, 39) = 58.1200
+3. Límites de aceptación:
+   L_I = 23.6543 / (12 * 39) = 0.05054
+   L_S = 58.1200 / (12 * 39) = 0.12419
+4. Decisión: Como V(r) = 0.08695 está entre 0.05054 y 0.12419, no se rechaza H0.
 """
+
+
 def prueba_varianza(aleatorios, alfa=0.05):
     if not isinstance(aleatorios, list) or len(aleatorios) < 2:
         return "Se requiere una lista con al menos 2 números pseudoaleatorios"
@@ -102,23 +106,28 @@ def prueba_varianza(aleatorios, alfa=0.05):
 
     n = len(aleatorios)
     x_barra = sum(aleatorios) / n
-    s_cuadrada = sum((r - x_barra) ** 2 for r in aleatorios) / (n - 1)
+
+    # 1. Calcular varianza muestral V(r)
+    v_r = sum((r - x_barra) ** 2 for r in aleatorios) / (n - 1)
+
+    # 2. Calcular límites de aceptación con Chi-cuadrada
     var_teorica = 1 / 12
-    chi_cuadrado = (n - 1) * s_cuadrada / var_teorica
     chi_inf = stats.chi2.ppf(alfa / 2, n - 1)
     chi_sup = stats.chi2.ppf(1 - alfa / 2, n - 1)
+
+    l_inferior = chi_inf / (12 * (n - 1))
+    l_superior = chi_sup / (12 * (n - 1))
 
     return {
         "n": n,
         "x_barra": round(x_barra, 4),
-        "S_cuadrada": round(s_cuadrada, 4),
-        "chi_cuadrado_calculado": round(chi_cuadrado, 4),
-        "chi_cuadrado_inferior": round(chi_inf, 4),
-        "chi_cuadrado_superior": round(chi_sup, 4),
+        "V_r": round(v_r, 4),
+        "varianza_teorica": round(var_teorica, 4),
+        "L_inferior": round(l_inferior, 4),
+        "L_superior": round(l_superior, 4),
         "alfa": alfa,
-        "decision": "No se rechaza H0" if chi_inf <= chi_cuadrado <= chi_sup else "Se rechaza H0"
+        "decision": "No se rechaza H0" if l_inferior <= v_r <= l_superior else "Se rechaza H0"
     }
-
 
 # =============================================================================
 # VALIDADOR 3.1: PRUEBA DE UNIFORMIDAD - CHI-CUADRADO
@@ -343,40 +352,36 @@ def prueba_corridas_arriba_abajo(aleatorios, alfa=0.05):
 # VALIDADOR 4.2: PRUEBA DE CORRIDAS ARRIBA Y ABAJO DE LA MEDIA
 # =============================================================================
 """
-Algoritmo 4.2: Prueba de corridas arriba y abajo de la media.
-Verifica la independencia comparando cada número con la media muestral (o 0.5)
-y analizando las corridas de valores consecutivos por encima o por debajo.
+Algoritmo: Prueba de corridas arriba y abajo de la media.
+Objetivo: Verificar la independencia de los números pseudoaleatorios comparando 
+cada número con el valor 0.5 (no con la media muestral) y analizando las corridas 
+de valores consecutivos por encima o por debajo de este umbral.
 
 Hipótesis:
-H0: Los números son independientes
-H1: Los números no son independientes
+H0: Los números del conjunto son independientes.
+H1: Los números del conjunto no son independientes.
 
-Procedimiento:
-1. Se calcula la media x̄ de los números (o se usa 0.5)
-2. Se marca "+" si r[i] ≥ x̄, "-" si r[i] < x̄
-3. Se cuenta el número de corridas "b"
-4. Se cuentan n1 (números ≥ x̄) y n2 (números < x̄)
+Pasos:
+1. Construir una secuencia de unos y ceros: asignar 1 si r_i >= 0.5, y 0 si r_i < 0.5.
+2. Contar el número total de corridas observadas (C0), donde una corrida es un 
+   grupo de unos consecutivos o ceros consecutivos.
+3. Contar n0 (cantidad de ceros) y n1 (cantidad de unos), cumpliendo que n0 + n1 = n.
+4. Calcular el valor esperado (μ) y la varianza (σ²) del número de corridas:
+   μ_C0 = (2 * n0 * n1) / n + 0.5
+   σ²_C0 = (2 * n0 * n1 * (2 * n0 * n1 - n)) / (n² * (n - 1))
+5. Calcular el estadístico de prueba Z: Z = (C0 - μ_C0) / σ_C0
+6. Criterio de decisión: Si -Z_(α/2) <= Z <= Z_(α/2), no se rechaza H0.
 
-Estadístico de prueba:
-μ_b = (2 * n1 * n2) / n + 0.5
-σ²_b = (2 * n1 * n2 * (2 * n1 * n2 - n)) / (n² * (n - 1))
-Z = (b - μ_b) / σ_b
-
-Criterio de decisión:
-Si |Z| ≤ Z_{α/2}, no se rechaza H0
-Si |Z| > Z_{α/2}, se rechaza H0
-
-Ejemplo (r = [0.12, 0.36, 0.52, 0.41, 0.23, 0.67, 0.89, 0.71], x̄ = 0.48875, α = 0.05):
-Signos: - - + - - + + +
-n1 = 4 (≥ x̄), n2 = 4 (< x̄)
-Corridas: b = 4
-μ_b = (2 * 4 * 4) / 8 + 0.5 = 4.5
-σ²_b = (2 * 4 * 4 * (2 * 4 * 4 - 8)) / (64 * 7) = 1.714
-σ_b = 1.309
-Z = (4 - 4.5) / 1.309 = -0.382
-Z_{0.025} = 1.96
-|-0.382| < 1.96 → No se rechaza H0
+Ejemplo (Basado en el Ejemplo 2.16 del libro, simplificado):
+Conjunto de n = 50 números, α = 0.05.
+Secuencia generada tiene: C0 = 21 corridas, n0 = 23 ceros, n1 = 27 unos.
+1. μ_C0 = (2 * 23 * 27) / 50 + 0.5 = 25.34
+2. σ²_C0 = (2 * 23 * 27 * (2 * 23 * 27 - 50)) / (50² * 49) = 12.0854  -> σ_C0 ≈ 3.476
+3. Z = (21 - 25.34) / 3.476 = -1.2484
+4. Decisión: Como -1.96 <= -1.2484 <= 1.96, no se rechaza H0 (son independientes).
 """
+
+
 def prueba_corridas_media(aleatorios, alfa=0.05):
     if not isinstance(aleatorios, list) or len(aleatorios) < 3:
         return "Se requiere una lista con al menos 3 números pseudoaleatorios"
@@ -386,39 +391,44 @@ def prueba_corridas_media(aleatorios, alfa=0.05):
         return "El nivel de significancia (alfa) debe estar entre 0 y 1"
 
     n = len(aleatorios)
-    x_barra = sum(aleatorios) / n
+
+    # 1. Construir secuencia comparando con 0.5 (según el libro)
     signos = []
-    n1 = 0
-    n2 = 0
+    n1 = 0  # Cantidad de unos (>= 0.5)
+    n0 = 0  # Cantidad de ceros (< 0.5)
+
     for r in aleatorios:
-        if r >= x_barra:
-            signos.append("+")
+        if r >= 0.5:
+            signos.append(1)
             n1 += 1
         else:
-            signos.append("-")
-            n2 += 1
+            signos.append(0)
+            n0 += 1
 
-    # Contar corridas
-    b = 1
+    # 2. Contar corridas (C0)
+    c0 = 1
     for i in range(1, len(signos)):
         if signos[i] != signos[i - 1]:
-            b += 1
+            c0 += 1
 
-    mu_b = (2 * n1 * n2) / n + 0.5
-    var_b = (2 * n1 * n2 * (2 * n1 * n2 - n)) / (n ** 2 * (n - 1))
-    sigma_b = math.sqrt(var_b) if var_b > 0 else 0
-    z = (b - mu_b) / sigma_b if sigma_b > 0 else 0
+    # 4. Calcular media y varianza de las corridas
+    mu_c0 = (2 * n0 * n1) / n + 0.5
+    var_c0 = (2 * n0 * n1 * (2 * n0 * n1 - n)) / (n ** 2 * (n - 1))
+    sigma_c0 = math.sqrt(var_c0) if var_c0 > 0 else 0
+
+    # 5. Estadístico Z
+    z = (c0 - mu_c0) / sigma_c0 if sigma_c0 > 0 else 0
     z_critico = stats.norm.ppf(1 - alfa / 2)
 
     return {
         "n": n,
-        "x_barra": round(x_barra, 4),
+        "valor_comparacion": 0.5,
         "n1": n1,
-        "n2": n2,
-        "signos": signos,
-        "corridas_observadas": b,
-        "mu_b": round(mu_b, 4),
-        "sigma_b": round(sigma_b, 4),
+        "n0": n0,
+        "secuencia": signos,
+        "corridas_observadas": c0,
+        "mu_c0": round(mu_c0, 4),
+        "sigma_c0": round(sigma_c0, 4),
         "Z_calculado": round(z, 4),
         "Z_critico": round(z_critico, 4),
         "alfa": alfa,
@@ -591,42 +601,35 @@ def prueba_poker(aleatorios, k=4, alfa=0.05):
 # VALIDADOR 4.4: PRUEBA DE SERIES
 # =============================================================================
 """
-Algoritmo 4.4: Prueba de series.
-Verifica la independencia analizando pares consecutivos de números y su distribución
-en una matriz de k×k celdas.
+Algoritmo: Prueba de series.
+Objetivo: Corroborar la independencia entre números consecutivos analizando su 
+distribución conjunta en una gráfica de dispersión dividida en casillas.
 
 Hipótesis:
-H0: Los números son independientes
-H1: Los números no son independientes
+H0: Los números r_i son independientes.
+H1: Los números r_i son dependientes.
 
-Procedimiento:
-1. Se forman pares consecutivos: (r[0], r[1]), (r[2], r[3]), ...
-2. Se divide el intervalo (0,1) en k subintervalos
-3. Se cuenta cuántos pares caen en cada celda (i,j) de la matriz k×k
-4. Se comparan las frecuencias observadas con las esperadas
+Pasos:
+1. Crear pares ordenados consecutivos SUPERPUESTOS: (r_1, r_2), (r_2, r_3), ..., (r_{n-1}, r_n).
+   El número total de pares es (n - 1).
+2. Dividir el plano (0,1) x (0,1) en una matriz de m x m casillas (donde m es un 
+   entero cercano a √n, preferiblemente formando una matriz cuadrada).
+3. Contabilizar la frecuencia observada (O_i) de puntos que caen en cada casilla.
+4. Calcular la frecuencia esperada (E_i) bajo la hipótesis de independencia:
+   E_i = (n - 1) / m²
+5. Calcular el estadístico de prueba Chi-cuadrada:
+   χ²_0 = Σ (E_i - O_i)² / E_i  (sumando sobre las m² casillas)
+6. Criterio de decisión: Si χ²_0 <= χ²_(α, m²-1), no se rechaza H0.
 
-Estadístico de prueba:
-χ² = Σ_{i=1}^{k} Σ_{j=1}^{k} (O[i,j] - E[i,j])² / E[i,j]
-
-Donde:
-- O[i,j] = frecuencia observada en la celda (i,j)
-- E[i,j] = n_pares / k² (frecuencia esperada bajo independencia)
-- n_pares = n/2 (número de pares formados)
-
-Criterio de decisión:
-Si χ² ≤ χ²_{α, k²-1}, no se rechaza H0
-Si χ² > χ²_{α, k²-1}, se rechaza H0
-
-Ejemplo (n=20, k=2, α=0.05):
-Pares: (r1,r2), (r3,r4), ..., (r19,r20)
-Matriz 2×2:
-       [0,0.5)  [0.5,1]
-[0,0.5)   5        3
-[0.5,1]   4        3
-E = 10/4 = 2.5 en cada celda
-χ² = (5-2.5)²/2.5 + (3-2.5)²/2.5 + (4-2.5)²/2.5 + (3-2.5)²/2.5 = 4.0
-χ²_{0.05, 3} = 7.815
-4.0 < 7.815 → No se rechaza H0
+Ejemplo (Basado en el Ejemplo 2.18 del libro):
+Conjunto de n = 30 números, α = 0.05.
+1. Pares ordenados totales = 29.
+2. Se elige m = 3 (matriz de 3x3 = 9 casillas).
+3. Frecuencia esperada por casilla: E_i = 29 / 9 = 3.22.
+4. Tras contar las frecuencias observadas en cada casilla, se calcula:
+   χ²_0 = 7.935
+5. Valor crítico de tabla: χ²_(0.05, 8) = 15.507.
+6. Decisión: Como 7.935 <= 15.507, no se rechaza H0 (son independientes).
 """
 def prueba_series(aleatorios, k=2, alfa=0.05):
     if not isinstance(aleatorios, list) or len(aleatorios) < 4:
@@ -639,20 +642,27 @@ def prueba_series(aleatorios, k=2, alfa=0.05):
         return "El nivel de significancia (alfa) debe estar entre 0 y 1"
 
     n = len(aleatorios)
-    n_pares = n // 2
     amplitud = 1 / k
+
+    # Crear matriz k×k para las frecuencias observadas
     matriz = [[0] * k for _ in range(k)]
 
-    for i in range(0, n_pares * 2, 2):
+    # 1. Pares SUPERPUESTOS (como dice el libro): (r[i], r[i+1])
+    n_pares = n - 1
+    for i in range(n_pares):
         r1 = aleatorios[i]
         r2 = aleatorios[i + 1]
         fila = min(int(r1 / amplitud), k - 1)
         columna = min(int(r2 / amplitud), k - 1)
         matriz[fila][columna] += 1
 
+    # 4. Frecuencia esperada según el libro: (n-1) / m²
     esperada = n_pares / (k ** 2)
-    chi_cuadrado = sum((matriz[i][j] - esperada) ** 2 / esperada 
+
+    # 5. Calcular Chi-cuadrada
+    chi_cuadrado = sum((matriz[i][j] - esperada) ** 2 / esperada
                        for i in range(k) for j in range(k))
+
     grados_libertad = k ** 2 - 1
     chi_critico = stats.chi2.ppf(1 - alfa, grados_libertad)
 
